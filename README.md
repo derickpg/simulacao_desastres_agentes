@@ -7,4 +7,6 @@
 
 Trabalho de Conclusão de Curso em Graduação em Ciência da Computação.
 
-** Projeto implementado na Plataforma UNITY, caso seja necessário o envio do projeto completo solicitar através do email: garcezderick@gmail.com
+** Projeto implementado na Plataforma UNITY, 
+caso seja necessário o envio do projeto completo 
+solicitar através do email: garcezderick@gmail.com **
