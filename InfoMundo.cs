@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class InfoMundo : MonoBehaviour
 {
-	int tempoExec = 0;
+	public int tempoExec = 0;
 	Vector2 casa = new Vector2(0, 12);
 	public int mundoX = 25; //25 quadrados de X
 	public int mundoZ = 25; //25 quadrados de Z
@@ -110,8 +110,6 @@ public class InfoMundo : MonoBehaviour
 
 	private void FixedUpdate()
 	{
-        if(resgatados == 8)
-            printMundo();
         if (resgatados == 0)
 		{
 			print(message: "FIM -> TEMPO DE EXECUÇÃO: " + tempoExec + " Segundos");

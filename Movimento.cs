@@ -14,8 +14,8 @@ public class Movimento : MonoBehaviour
 	public int resgatados;//numero de pessoas para serem resgatadas
 	public int visao = 4; // quantos quadrados a sua volta ele olha! 
 	public int destx;
-	// Limite de calor que o drone considera seguro, mais que isso o caminho é invalido!
-	public int limiteCalor = 50; //definido pelo mundo
+    // Limite de calor que o drone considera seguro, mais que isso o caminho é invalido!
+    public int limiteCalor; //definido pelo mundo
 	public int desty;
 	GameObject resgatado = null;
 	Vector2 casa = new Vector2(0, 12);
@@ -32,6 +32,11 @@ public class Movimento : MonoBehaviour
 	int[][] mundo;
 	GameObject world;
 	public int qnt = 0; // quantidade de pessoas seguindo esse lider
+
+    private int contb = 0;
+    private Vector3 oldpos;
+
+    int comoProcurar = 0; 
 
     int[][] caminhosValidos = new int[][]
     {                                                                                      //z
@@ -63,26 +68,75 @@ public class Movimento : MonoBehaviour
        };
 
     //Variaveis da Bateria
-    int bateria = 50; //porcentagem de bateria 
+    public int bateria = 50; //porcentagem de bateria 
 	int autonomia = 2; //Define a autonomia da bateria (quantos tempos++ consome 1 porcento)
 	int contAutonomia = 0; //Variavel que conta a autonomia
     private bool carregar = false; //Marca quando tem que carregar
     private bool retornarCarregar = false; //avisa que esta retornando para carregar
 	private bool pbase = false; //Avisa quando chegou na base e pode carregar
+    public String nome;
 
-
- 
-
+    //Variaveis auxiliars
+    private int contadorb = 0;
 
     void Start()
 	{
-    
+        oldpos = this.gameObject.transform.position;
+        //Processo de comunicação dos drones
+        GameObject[] drones = GameObject.FindGameObjectsWithTag("Drone");
+        nome = this.gameObject.name;
+        char[] n = nome.ToCharArray();
+        int meuNumero = Int32.Parse(n[7] + "");
+        for(int i = meuNumero; i < drones.Length; i++)
+        {
+            if(drones[i].GetComponent<Movimento>().comoCaminho() < 2)
+            {
+                comoProcurar = drones[i].GetComponent<Movimento>().comoCaminho() + 1;
+                break;
+
+            }
+            else
+            {
+                comoProcurar = 0;
+                break;
+            }
+        }
         world = GameObject.FindGameObjectWithTag("Mundo");
 		mundo = world.GetComponent<InfoMundo>().getMundo();
 		resgatados = world.GetComponent<InfoMundo>().getResgatados();
 		//limiteCalor = world.GetComponent<InfoMundo>().limiteCalor;
 		limiteCalor = 50;
-	}
+        print(message: limiteCalor);
+    }
+
+    public int[][] getCaminhoValido() { return caminhosValidos;  }
+
+    private int[][] margeMatriz(int[][]  matrizA, int[][] matrizB) {
+        int[][] resultado = new int[matrizA.Length][];
+        for(int z = 0; z < matrizA.Length; z++)
+        {
+            int[] aux = new int[matrizA.Length];
+            for(int x = 0; x < matrizA.Length; x++)
+            {
+                if (matrizA[z][x] >= matrizB[z][x])
+                    aux[x] = matrizA[z][x];
+                else
+                    aux[x] = matrizB[z][x];
+            }
+            resultado[z] = aux;
+        }
+        return resultado;
+    }
+
+    private void atualizaCaminhoValido(int[][] matrizdrone)
+    {
+        caminhosValidos = margeMatriz(caminhosValidos, matrizdrone);
+    }
+
+    public int comoCaminho()
+    {
+        return comoProcurar;
+    }
 
 	GameObject marcaResgatado(int x, int z)
 	{
@@ -273,7 +327,7 @@ public class Movimento : MonoBehaviour
 		   );*/
 
 
-		if ((xi + 1 < tamX) && ((mundo[zi][xi + 1] <= limiteCalor)))
+		if ((xi + 1 < tamX) && ((mundo[zi][xi + 1] < limiteCalor)))
 		{
 			//print(message: "x+1 -> " + (xi+1) + "," + zi);
 			if (!jaFoi(xi + 1, zi))
@@ -283,7 +337,7 @@ public class Movimento : MonoBehaviour
 				retorno.Add(nova1);
 			}
 		}
-		if ((zi + 1 < tamX) && (mundo[zi + 1][xi] <= limiteCalor))
+		if ((zi + 1 < tamX) && (mundo[zi + 1][xi] < limiteCalor))
 		{
 			//print(message: "Z+1 -> " + xi + "," + (zi + 1));
 			if (!jaFoi(xi, zi + 1))
@@ -293,7 +347,7 @@ public class Movimento : MonoBehaviour
 				retorno.Add(nova2);
 			}
 		}
-		if ((zi - 1 > -1) && (mundo[zi - 1][xi] <= limiteCalor))
+		if ((zi - 1 > -1) && (mundo[zi - 1][xi] < limiteCalor))
 		{
 			//print(message: "Z-1 -> " + xi + "," + (zi - 1));
 			if (!jaFoi(xi, zi - 1))
@@ -304,7 +358,7 @@ public class Movimento : MonoBehaviour
 				retorno.Add(nova3);
 			}
 		}
-		if ((xi - 1 > -1) && (mundo[zi][xi - 1] <= limiteCalor))
+		if ((xi - 1 > -1) && (mundo[zi][xi - 1] < limiteCalor))
 		{
 			//print(message: "X-1 -> " + (xi-1) + "," + zi);
 			if (!jaFoi(xi - 1, zi))
@@ -334,6 +388,8 @@ public class Movimento : MonoBehaviour
 		List<Coordenada> vizinhos = new List<Coordenada>();
 		List<Vector2> caminho = new List<Vector2>();
 		aberta.Add(new Coordenada(xOrigem, zOrigem));
+        int preco = 0; // preco de acesso a celula
+        aberta[0].setF(mundo[aberta[0].getZ()][aberta[0].getX()] + 1);
 		Coordenada fim = null;
 		int k = 0;
 		while (aberta.Count > 0)
@@ -354,20 +410,15 @@ public class Movimento : MonoBehaviour
 				}
 				else
 				{
+                    preco = mundo[vizinhos[i].getZ()][vizinhos[i].getX()] + 1;
+                    //print(message: "preco " + preco);
 					// 10 * (abs (currentX-targetX) + abs (currentY-targetY))
 					int novoh = Math.Abs((10 * ((vizinhos[i].getX() - xDestino) + (vizinhos[i].getZ() - zDestino))));
 					//print(message: "[DEBUG] F do (" + vizinhos[i].getX() + "," + vizinhos[i].getZ() + ")" + (10 * ((vizinhos[i].getX() - xDestino) + (vizinhos[i].getZ() - zDestino))));
-					vizinhos[i].setG(aberta[k].getF() + 1);
-					vizinhos[i].setH(novoh);
-					vizinhos[i].setF(Math.Abs((vizinhos[i].getH() + vizinhos[i].getG())));
+					vizinhos[i].setG(aberta[k].getF() + preco);
+					vizinhos[i].setH(novoh + preco);
+					vizinhos[i].setF((Math.Abs((vizinhos[i].getH() + vizinhos[i].getG()))));
 					aberta.Add(vizinhos[i]);
-					//print(message: "[DEBUG] VIZINHO ADD " + vizinhos[i].getX() + " " + vizinhos[i].getZ() + " F = " + vizinhos[i].f);
-					/*  aberta.Sort(delegate (Coordenada c1, Coordenada c2) //ordena a lista aberta
-                      {
-                          return c1.getF().CompareTo(c2.getF());
-                      });  */
-					//people.OrderBy(person => person.LastName);
-					//print(message: "prox aberta " + aberta[1].getX() + " " + aberta[1].getZ());
 				}
 			}
 			if (fim == null)
@@ -397,11 +448,11 @@ public class Movimento : MonoBehaviour
 		return caminho;
 	}
 
-
-	void procurando()
+    // comoProcurar  == 0
+    void procurando()
 	{
 
-		//Procura Força brut
+		//Procura Força bruta
 		int xi = (int)transform.position.x;
 		int zi = (int)transform.position.z;
 		//print(message: "[DEBUG] FrocaBruta => " + lado + " MenorCaminho =>" + menorCaminho);
@@ -470,16 +521,183 @@ public class Movimento : MonoBehaviour
 		conti = 0;
 	}
 
+    // comoProcurar  == 1
+    void procurando2()
+    {
 
-	private void FixedUpdate()
+        //Procura Força bruta
+        int xi = (int)transform.position.x;
+        int zi = (int)transform.position.z;
+        //print(message: "[DEBUG] FrocaBruta => " + lado + " MenorCaminho =>" + menorCaminho);
+
+
+        if (!achei)
+        {
+            olhando();
+        }
+
+        if (achei)
+        {
+            //print(message: "[DEBUG] achei ? " + achei + " objetivo = " + objX + " " + objZ + " --- " + this.gameObject.name);
+            mundo = world.GetComponent<InfoMundo>().getMundo();
+            caminhoAS = aEstrela(xi, zi, objX, objZ);
+            //print(message: "[DEBUG] caminhoAS " + caminhoAS.Count);
+            contStar = caminhoAS.Count - 1;
+            aStar = true;
+            resgate = true;
+            //print(message: "[DEBUG] contStar " + contStar);
+            //resgatado.transform.position = new Vector3(transform.position.x, 0, transform.position.z);
+        }
+
+        if ((zi - 1 >= 0) && mundo[zi - 1][xi] <= limiteCalor && caminhosValidos[zi - 1][xi] == menorCaminho)
+        {  //== 0 , é livre  \ == 1 é ocupado
+            zi = zi - 1;
+            //print(message: "4ENTREI zi-1" + zi + " --- " + menorCaminho + " --- " + caminhosValidos[zi][xi]);
+            caminhosValidos[zi][xi] = caminhosValidos[zi][xi] + 1;
+            menorCaminho = 0;
+            transform.position = new Vector3(xi, 0, zi);
+        }else if ((xi - 1 >= 0) && mundo[zi][xi - 1] <= limiteCalor && caminhosValidos[zi][xi - 1] == menorCaminho)
+        {  //== 0 , é livre  \ == 1 é ocupado
+            xi = xi - 1;
+            //print(message: "2ENTREI xi n " + xi + " --- " + menorCaminho + " --- " + caminhosValidos[zi][xi]);
+            caminhosValidos[zi][xi] = caminhosValidos[zi][xi] + 1;
+            menorCaminho = 0;
+            transform.position = new Vector3(xi, 0, zi);
+        }
+        else if ((zi + 1 < tamX) && mundo[zi + 1][xi] <= limiteCalor && caminhosValidos[zi + 1][xi] == menorCaminho)
+        {  //== 0 , é livre  \ == 1 é ocupado
+            zi = zi + 1;
+            //print(message: "3ENTREI zi+1" + zi + " --- " + menorCaminho + " --- " + caminhosValidos[zi][xi]);
+            caminhosValidos[zi][xi] = caminhosValidos[zi][xi] + 1;
+            menorCaminho = 0;
+            transform.position = new Vector3(xi, 0, zi);
+        }
+        else if ((xi + 1 < tamX) && mundo[zi][xi + 1] <= limiteCalor && caminhosValidos[zi][xi + 1] == menorCaminho)
+        {  //== 0 , é livre  \ == 1 é ocupado 
+            xi = xi + 1;
+            //print(message: "1ENTREI xi 1" + " --- " + menorCaminho + " --- " + caminhosValidos[zi][xi]);
+            caminhosValidos[zi][xi] = caminhosValidos[zi][xi] + 1;
+            menorCaminho = 0;
+            transform.position = new Vector3(xi, 0, zi);
+
+        }
+        else
+        {
+            //print(message: "menor " + this.gameObject.name);
+            menorCaminho = menorCaminho + 1;
+        }
+
+        //   }
+
+        conti = 0;
+    }
+
+    // comoProcurar  == 2
+    void procurando3()
+    {
+
+        //Procura Força bruta
+        int xi = (int)transform.position.x;
+        int zi = (int)transform.position.z;
+        //print(message: "[DEBUG] FrocaBruta => " + lado + " MenorCaminho =>" + menorCaminho);
+
+
+        if (!achei)
+        {
+            olhando();
+        }
+
+        if (achei)
+        {
+            //print(message: "[DEBUG] achei ? " + achei + " objetivo = " + objX + " " + objZ + " --- " + this.gameObject.name);
+            mundo = world.GetComponent<InfoMundo>().getMundo();
+            caminhoAS = aEstrela(xi, zi, objX, objZ);
+            //print(message: "[DEBUG] caminhoAS " + caminhoAS.Count);
+            contStar = caminhoAS.Count - 1;
+            aStar = true;
+            resgate = true;
+            //print(message: "[DEBUG] contStar " + contStar);
+            //resgatado.transform.position = new Vector3(transform.position.x, 0, transform.position.z);
+        }
+
+        if ((zi + 1 < tamX) && mundo[zi + 1][xi] <= limiteCalor && caminhosValidos[zi + 1][xi] == menorCaminho)
+        {  //== 0 , é livre  \ == 1 é ocupado
+            zi = zi + 1;
+            //print(message: "3ENTREI zi+1" + zi + " --- " + menorCaminho + " --- " + caminhosValidos[zi][xi]);
+            caminhosValidos[zi][xi] = caminhosValidos[zi][xi] + 1;
+            menorCaminho = 0;
+            transform.position = new Vector3(xi, 0, zi);
+        }else if ((zi - 1 >= 0) && mundo[zi - 1][xi] <= limiteCalor && caminhosValidos[zi - 1][xi] == menorCaminho)
+        {  //== 0 , é livre  \ == 1 é ocupado
+            zi = zi - 1;
+            //print(message: "4ENTREI zi-1" + zi + " --- " + menorCaminho + " --- " + caminhosValidos[zi][xi]);
+            caminhosValidos[zi][xi] = caminhosValidos[zi][xi] + 1;
+            menorCaminho = 0;
+            transform.position = new Vector3(xi, 0, zi);
+        }else if ((xi + 1 < tamX) && mundo[zi][xi + 1] <= limiteCalor && caminhosValidos[zi][xi + 1] == menorCaminho)
+        {  //== 0 , é livre  \ == 1 é ocupado 
+            xi = xi + 1;
+            //print(message: "1ENTREI xi 1" + " --- " + menorCaminho + " --- " + caminhosValidos[zi][xi]);
+            caminhosValidos[zi][xi] = caminhosValidos[zi][xi] + 1;
+            menorCaminho = 0;
+            transform.position = new Vector3(xi, 0, zi);
+
+        }else if ((xi - 1 >= 0) && mundo[zi][xi - 1] <= limiteCalor && caminhosValidos[zi][xi - 1] == menorCaminho)
+        {  //== 0 , é livre  \ == 1 é ocupado
+            xi = xi - 1;
+            //print(message: "2ENTREI xi n " + xi + " --- " + menorCaminho + " --- " + caminhosValidos[zi][xi]);
+            caminhosValidos[zi][xi] = caminhosValidos[zi][xi] + 1;
+            menorCaminho = 0;
+            transform.position = new Vector3(xi, 0, zi);
+        }
+        else
+        {
+            //print(message: "menor " + this.gameObject.name);
+            menorCaminho = menorCaminho + 1;
+        }
+
+        //   }
+
+        conti = 0;
+    }
+
+    
+    private void FixedUpdate()
 	{
 
 		if (conti == tempo)
 		{
-			//print(message: " Bateria - " + bateria + " - Drone: " + this.gameObject.name);
-			//print(message: "[DEBUG] BATERIA " + this.gameObject.name + " " + contAutonomia + " " + autonomia + " " + bateria);
-			//BATERIA
-			contAutonomia++;
+
+            if(contb == 10)
+            {
+                transform.position = new Vector3(2, 0, 12);
+                bateria = 0;
+                contb = 0;
+            }
+            if (transform.position == oldpos)
+                contb++;
+            else
+            {
+                contb = 0;
+                oldpos = transform.position;
+            }
+
+            // ATUALIZA OS CAMINHOS VALIDOS COM TODOS OS DRONES!
+            GameObject[] drones = GameObject.FindGameObjectsWithTag("Drone");
+            for (int i = 0; i < drones.Length; i++)
+            {
+                if (!(drones[i].GetComponent<Movimento>().gameObject.name.Equals(nome)))
+                {
+                    atualizaCaminhoValido(drones[i].GetComponent<Movimento>().getCaminhoValido());
+                }
+
+            }
+
+            mundo = world.GetComponent<InfoMundo>().getMundo(); //ATUALIZA O MUNDO INTERNO 
+            //print(message: " Bateria - " + bateria + " - Drone: " + this.gameObject.name);
+            //print(message: "[DEBUG] BATERIA " + this.gameObject.name + " " + contAutonomia + " " + autonomia + " " + bateria);
+            //BATERIA
+            contAutonomia++;
 			if (autonomia == contAutonomia)
 			{ //Se chegamos na autonomia, tira 1 porcento da bateria
 				bateria--;
@@ -556,7 +774,12 @@ public class Movimento : MonoBehaviour
 						{
 							//print(message: "[DEBUG] procurando sim " + this.gameObject.name);
 							pbase = false;
-							procurando();
+                            if (comoProcurar == 0)
+                                procurando();
+                            else if (comoProcurar == 1)
+                                procurando2();
+                            else if (comoProcurar == 2)
+                                procurando3();
 						}
 				}
 				else
@@ -575,8 +798,10 @@ public class Movimento : MonoBehaviour
 							pessoa = marcaResgatado(((int)transform.position.x), ((int)transform.position.z));
 							if (pessoa != null && pessoa.GetComponent<PessoasScript>().idResgate == this.gameObject.name)
 							{
-								pessoa.GetComponent<PessoasScript>().limpaLugar(); //Marca no mundo que o lugar esta vazio
-								resgate = false;
+                                print(message: "RESGATANDO O " + pessoa.GetComponent<PessoasScript>().name);
+                                pessoa.GetComponent<PessoasScript>().droneResgate(); //Marca a pessoa para ser resgatada e ela parar 
+                                pessoa.GetComponent<PessoasScript>().limpaLugar(); //Marca no mundo que o lugar esta vazio
+                                resgate = false;
 								caminhoAS.Clear();
 								caminhoAS = aEstrela((int)transform.position.x, (int)transform.position.z, (int)casa.x, (int)casa.y);
 								contStar = caminhoAS.Count - 1;
@@ -617,7 +842,7 @@ public class Movimento : MonoBehaviour
 							else
 							{*/ // a pessoa resgatada não é lider
 							  // tira só o único que foi resgatado
-								world.GetComponent<InfoMundo>().resgatados = world.GetComponent<InfoMundo>().resgatados - 1;
+								world.GetComponent<InfoMundo>().resgatados = world.GetComponent<InfoMundo>().resgatados - pessoa.GetComponent<PessoasScript>().qntResgatados - 1;
 							//}
 							resgatados = world.GetComponent<InfoMundo>().getResgatados();
 							//print(message: "RESGATADOS = " + resgatados);
